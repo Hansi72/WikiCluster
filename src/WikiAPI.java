@@ -1,54 +1,67 @@
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.LinkedList;
 
 public class WikiAPI {
 
-
-
+    public LinkedList<String> getWikiLinkTitles(String article) {
+        String url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=linkshere&formatversion=2&lhprop=title&lhshow=!redirect&lhlimit=max&titles=" + article;
+        LinkedList<String> titles = new LinkedList<>();
+        try {
+            String requestAnswer = httpRequest(url);
+            while (requestAnswer.contains("lhcontinue")) {
+                pushLinkTitles(requestAnswer, titles);
+                requestAnswer = httpRequest(url + "&lhcontinue=" + getContinueCode(requestAnswer));
+            }
+            pushLinkTitles(requestAnswer, titles);
+        } catch (IOException e) {
+            System.err.println("HTTP request failed for title " + article + " ignoring this title.");
+            //todo retry with formatted title.  ex: article.replaceAll(" ", "%20")
+        }
+        return titles;
+    }
 
     //extract the url titles from a string of JSON.
-    String[] getLinkTitles(String json){
-        String[] linkTitles = new String[500];
+    void pushLinkTitles(String json, LinkedList<String> titles) {
         int startIndex = json.indexOf("links");
         int endIndex = 0;
         int oldStartIndex = 0;
+        String title;
 
-        for(int i = 0; i < 500; i++) {
+        for (int i = 0; i < 500; i++) {
             oldStartIndex = startIndex;
             startIndex = json.indexOf("title", startIndex) + "title".length() + 3;
             endIndex = json.indexOf("}", startIndex) - 1;
-            if(startIndex < oldStartIndex){break;}
-            linkTitles[i] = json.substring(startIndex, endIndex);
+            if (startIndex < oldStartIndex) {
+                break;
+            }
+            title = json.substring(startIndex, endIndex).replaceAll(" ", "_");
+            if (isArticle(title)) {
+                titles.push(title);
+            }
         }
-        return linkTitles;
     }
 
-    String getContinueCode(String json){
+    String getContinueCode(String json) {
         int startIndex;
         int endIndex;
-        startIndex = json.indexOf("plcontinue") + "plcontinue".length() + 3;
+        startIndex = json.indexOf("lhcontinue") + "lhcontinue".length() + 3;
         endIndex = json.indexOf('"' + ",", startIndex);
         return json.substring(startIndex, endIndex);
     }
 
-    public void getWikiLinkTitles(String article){
-        String url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=links&pllimit=max&titles=" + article;
-        try {
-            String requestAnswer = httpRequest(url);
-            String[] test = getLinkTitles(requestAnswer); //todo find out what structure to use and merge the results here.
-            while(requestAnswer.contains("plcontinue")) {
-                requestAnswer = httpRequest(url + "&plcontinue=" + getContinueCode(requestAnswer));
-            }
-            test = getLinkTitles(requestAnswer); //todo find out what structure to use and merge the results here.
-        } catch (IOException e) {
-            e.printStackTrace();
+    //remove unwanted wikipedia links (talks, users etc..)
+    boolean isArticle(String title) {
+        if (title.startsWith("Talk") || title.startsWith("User") || title.startsWith("Wikipedia") || title.startsWith("Portal") || title.startsWith("List") || title.startsWith("Draft")) {
+            return false;
         }
+        return true;
     }
 
     public String httpRequest(String site) throws IOException {
         URL url = new URL(site);
-        HttpURLConnection connection = (HttpURLConnection)url.openConnection();
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
         connection.setRequestProperty("Content-Type", "application/json");
         connection.setRequestProperty("Accept", "application/json");
@@ -57,8 +70,8 @@ public class WikiAPI {
         BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream(), "utf-8"));
         StringBuilder response = new StringBuilder();
         String responseLine = null;
-            while ((responseLine = br.readLine()) != null) {
-                response.append(responseLine.trim());
+        while ((responseLine = br.readLine()) != null) {
+            response.append(responseLine.trim());
         }
         return response.toString();
     }
