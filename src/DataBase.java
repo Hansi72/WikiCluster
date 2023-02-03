@@ -1,9 +1,16 @@
 import java.io.*;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
 
 class DataBase implements Serializable {
-    public HashMap<String, ArticleNode> articles = new HashMap<>();
+
+    HashMap<String, Integer> articlesByName = new HashMap<>();
+    //todo save only the two below for less storage use
+    ArrayList<String> articlesByIndex = new ArrayList<>();
+    ArrayList<LinkedList<Integer>> adjLists = new ArrayList<>();
+
     Long creationDateUnix;
     int id;
 
@@ -12,10 +19,17 @@ class DataBase implements Serializable {
         this.id = id;
     }
 
-    public ArticleNode addArticle(String title) {
-        ArticleNode newArticle = new ArticleNode(title);
-        articles.put(title, newArticle);
-        return newArticle;
+    public void addArticle(String title) {
+        int nextIndex = articlesByName.size();
+        articlesByName.put(title, nextIndex);
+        articlesByIndex.add(title);
+        adjLists.add(nextIndex, new LinkedList<>());
+    }
+
+    public void addEdge(String source, String target) {
+        int sourceID = articlesByName.get(source);
+        int targetID = articlesByName.get(target);
+        adjLists.get(sourceID).add(targetID);
     }
 
     public void saveToFile(String fileName) {

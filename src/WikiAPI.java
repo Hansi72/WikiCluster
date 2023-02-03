@@ -31,8 +31,8 @@ public class WikiAPI {
 
         for (int i = 0; i < 500; i++) {
             oldStartIndex = startIndex;
-            startIndex = json.indexOf("title", startIndex) + "title".length() + "lhcontinue: {".length();;
-            endIndex = json.indexOf("}", startIndex);
+            startIndex = json.indexOf("title", startIndex) + "title\": ".length();
+            endIndex = json.indexOf("}", startIndex) - 1;
             if (startIndex < oldStartIndex) {
                 break;
             }
@@ -46,7 +46,7 @@ public class WikiAPI {
     String getContinueCode(String json) {
         int startIndex;
         int endIndex;
-        startIndex = json.indexOf("lhcontinue") + "lhcontinue: {".length();
+        startIndex = json.indexOf("lhcontinue") + "lhcontinue\": ".length();
         endIndex = json.indexOf('"' + ",", startIndex);
         return json.substring(startIndex, endIndex);
     }
