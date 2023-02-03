@@ -12,31 +12,27 @@ class DataBase implements Serializable {
         this.id = id;
     }
 
-    public void addArticle(String title, String source) {
-        if (articles.containsKey(title)) {
-            articles.get(title).addEdge(articles.get(source));
-        } else {
-            articles.put(title, new ArticleNode(title));
-            articles.get(title).addEdge(new ArticleNode(source));
-        }
+    public ArticleNode addArticle(String title) {
+        ArticleNode newArticle = new ArticleNode(title);
+        articles.put(title, newArticle);
+        return newArticle;
     }
 
-    public void saveToFile() {
-        String dir = System.getProperty("user.dir");
+    public void saveToFile(String fileName) {
+        String userDir = System.getProperty("user.dir");
         try {
-            FileOutputStream fileOut = new FileOutputStream(dir + "\\DataBases\\" + id); //todo create folder if not existing
+            FileOutputStream fileOut = new FileOutputStream(userDir + "\\data\\" + fileName);
             ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
             objectOut.writeObject(this);
             objectOut.close();
-            System.out.println("Successfully saved database with id " + id + " to " + dir + "\\DataBases\\");
+            System.out.println("Successfully saved database with id " + id + " to " + userDir + "\\data\\");
         } catch (Exception e) {
-            System.err.println("Error saving database with id " + id);
             System.err.println(e);
         }
     }
 
     public DataBase loadFromFile(int id) {
-        File file = new File(System.getProperty("user.dir") + "\\DataBases\\" + id);
+        File file = new File(System.getProperty("user.dir") + "\\data\\" + id);
         Object db = null;
         try {
             FileInputStream fileStream = new FileInputStream(file);
@@ -44,7 +40,6 @@ class DataBase implements Serializable {
             db = objectStream.readObject();
             System.out.println("Successfully loaded database with id " + id);
         } catch (ClassNotFoundException | IOException e) {
-            System.err.println("Error loading database with id " + id + " from " + System.getProperty("user.dir") + "\\DataBases\\");
             System.err.println(e);
         }
         return (DataBase) db;

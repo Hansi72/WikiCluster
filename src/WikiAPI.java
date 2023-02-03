@@ -1,14 +1,15 @@
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.util.LinkedList;
 
 public class WikiAPI {
 
     public LinkedList<String> getWikiLinkTitles(String article) {
-        String url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=linkshere&formatversion=2&lhprop=title&lhshow=!redirect&lhlimit=max&titles=" + article;
         LinkedList<String> titles = new LinkedList<>();
-        try {
+        try{
+        String url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=linkshere&formatversion=2&lhprop=title&lhshow=!redirect&lhlimit=max&titles=" + URLEncoder.encode(article, "UTF-8");
             String requestAnswer = httpRequest(url);
             while (requestAnswer.contains("lhcontinue")) {
                 pushLinkTitles(requestAnswer, titles);
@@ -17,7 +18,6 @@ public class WikiAPI {
             pushLinkTitles(requestAnswer, titles);
         } catch (IOException e) {
             System.err.println("HTTP request failed for title " + article + " ignoring this title.");
-            //todo retry with formatted title.  ex: article.replaceAll(" ", "%20")
         }
         return titles;
     }
@@ -31,12 +31,12 @@ public class WikiAPI {
 
         for (int i = 0; i < 500; i++) {
             oldStartIndex = startIndex;
-            startIndex = json.indexOf("title", startIndex) + "title".length() + 3;
-            endIndex = json.indexOf("}", startIndex) - 1;
+            startIndex = json.indexOf("title", startIndex) + "title".length() + "lhcontinue: {".length();;
+            endIndex = json.indexOf("}", startIndex);
             if (startIndex < oldStartIndex) {
                 break;
             }
-            title = json.substring(startIndex, endIndex).replaceAll(" ", "_");
+            title = json.substring(startIndex, endIndex);
             if (isArticle(title)) {
                 titles.push(title);
             }
@@ -46,7 +46,7 @@ public class WikiAPI {
     String getContinueCode(String json) {
         int startIndex;
         int endIndex;
-        startIndex = json.indexOf("lhcontinue") + "lhcontinue".length() + 3;
+        startIndex = json.indexOf("lhcontinue") + "lhcontinue: {".length();
         endIndex = json.indexOf('"' + ",", startIndex);
         return json.substring(startIndex, endIndex);
     }
