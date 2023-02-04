@@ -12,11 +12,9 @@ class DataBase implements Serializable {
     ArrayList<LinkedList<Integer>> adjLists = new ArrayList<>();
 
     Long creationDateUnix;
-    int id;
 
-    public DataBase(int id) {
+    public DataBase() {
         this.creationDateUnix = Instant.now().getEpochSecond();
-        this.id = id;
     }
 
     public void addArticle(String title) {
@@ -39,20 +37,20 @@ class DataBase implements Serializable {
             ObjectOutputStream objectOut = new ObjectOutputStream(fileOut);
             objectOut.writeObject(this);
             objectOut.close();
-            System.out.println("Successfully saved database with id " + id + " to " + userDir + "\\data\\");
+            System.out.println("Successfully saved database with id " + fileName + " to " + userDir + "\\data\\");
         } catch (Exception e) {
             System.err.println(e);
         }
     }
 
-    public DataBase loadFromFile(int id) {
-        File file = new File(System.getProperty("user.dir") + "\\data\\" + id);
+    public DataBase loadFromFile(String fileName) {
+        File file = new File(System.getProperty("user.dir") + "\\data\\" + fileName);
         Object db = null;
         try {
             FileInputStream fileStream = new FileInputStream(file);
             ObjectInputStream objectStream = new ObjectInputStream(fileStream);
             db = objectStream.readObject();
-            System.out.println("Successfully loaded database with id " + id);
+            System.out.println("Successfully loaded database with id " + fileName);
         } catch (ClassNotFoundException | IOException e) {
             System.err.println(e);
         }

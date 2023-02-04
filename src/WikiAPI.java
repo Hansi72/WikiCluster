@@ -31,7 +31,7 @@ public class WikiAPI {
 
         for (int i = 0; i < 500; i++) {
             oldStartIndex = startIndex;
-            startIndex = json.indexOf("title", startIndex) + "title\": ".length();
+            startIndex = json.indexOf("\"title\":", startIndex) + "\"title\": ".length();
             endIndex = json.indexOf("}", startIndex) - 1;
             if (startIndex < oldStartIndex) {
                 break;
