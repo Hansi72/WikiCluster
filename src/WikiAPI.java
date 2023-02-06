@@ -53,7 +53,7 @@ public class WikiAPI {
 
     //remove unwanted wikipedia links (talks, users etc..)
     boolean isArticle(String title) {
-        if (title.startsWith("Talk") || title.startsWith("User") || title.startsWith("Wikipedia") || title.startsWith("Portal") || title.startsWith("List") || title.startsWith("Draft")) {
+        if (title.startsWith("Talk") || title.startsWith("User") || title.startsWith("Wikipedia") || title.startsWith("Portal") || title.startsWith("List") || title.startsWith("Draft") || title.startsWith("Template")) {
             return false;
         }
         return true;
