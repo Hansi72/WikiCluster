@@ -6,10 +6,10 @@ import java.util.LinkedList;
 
 public class WikiAPI {
 
-    public LinkedList<String> getWikiLinkTitles(String article) {
+    public LinkedList<String> getWikiLinkTitles(String article, String countryCode) {
         LinkedList<String> titles = new LinkedList<>();
         try{
-        String url = "https://en.wikipedia.org/w/api.php?action=query&format=json&prop=linkshere&formatversion=2&lhprop=title&lhshow=!redirect&lhlimit=max&titles=" + URLEncoder.encode(article, "UTF-8");
+        String url = "https://" + countryCode + ".wikipedia.org/w/api.php?action=query&format=json&prop=linkshere&formatversion=2&lhprop=title&lhshow=!redirect&lhlimit=max&titles=" + URLEncoder.encode(article, "UTF-8");
             String requestAnswer = httpRequest(url);
             while (requestAnswer.contains("lhcontinue")) {
                 pushLinkTitles(requestAnswer, titles);
@@ -51,9 +51,13 @@ public class WikiAPI {
         return json.substring(startIndex, endIndex);
     }
 
-    //remove unwanted wikipedia links (talks, users etc..)
+    //remove unwanted wikipedia links (talks, users etc..) todo: make this faster (with a trie, if it reaches endNode, ignore)
     boolean isArticle(String title) {
-        if (title.startsWith("Talk") || title.startsWith("User") || title.startsWith("Wikipedia") || title.startsWith("Portal") || title.startsWith("List") || title.startsWith("Draft") || title.startsWith("Template")) {
+        if (title.startsWith("Wikipedia")
+                || title.startsWith("Talk") || title.startsWith("User")
+                || title.startsWith("Portal") || title.startsWith("List") || title.startsWith("Category") || title.startsWith("Draft") || title.startsWith("Template")
+                || title.startsWith("Diskusjon") || title.startsWith("Bruker")
+                || title.startsWith("Lenke") || title.startsWith("Liste") || title.startsWith("Kategori") || title.startsWith("Mal")) {
             return false;
         }
         return true;

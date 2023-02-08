@@ -6,6 +6,7 @@ import 'package:graphview/GraphView.dart';
 import 'package:http/http.dart' as http;
 
 main() async {
+  List<String> articles = List.empty(growable: true);
   runApp(const MyApp());
 }
 
@@ -78,14 +79,14 @@ class _MyHomePageState extends State<MyHomePage> {
               maxScale: 5.6,
               child: GraphView(
                 graph: graph,
-                algorithm: FruchtermanReingoldAlgorithm(),
+                algorithm: SugiyamaAlgorithm(builder),
                 paint: Paint()
                   ..color = Colors.green
                   ..strokeWidth = 1
                   ..style = PaintingStyle.stroke,
                 builder: (Node node) {
                   // I can decide what widget should be shown here based on the id
-                  var a = node.key?.value as int;
+                  var a = node.key?.value;
                   return rectangleWidget(a);
                 },
               )),
@@ -98,7 +99,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Random r = Random();
 
-  Widget rectangleWidget(int a) {
+  Widget rectangleWidget(String nodeName) {
     return InkWell(
       onTap: () {
         print('clicked');
@@ -111,17 +112,23 @@ class _MyHomePageState extends State<MyHomePage> {
               BoxShadow(color: Colors.blue, spreadRadius: 1),
             ],
           ),
-          child: Text('Node ${a}')),
+          child: Text(nodeName)),
     );
   }
 
   final Graph graph = Graph()..isTree = true;
-  FruchtermanReingoldAlgorithm builder = FruchtermanReingoldAlgorithm();
+  SugiyamaConfiguration builder = SugiyamaConfiguration();
 
   @override
   void initState() {
-
     futureGraph = fetchGraph(graph);
+
+    builder
+      //..siblingSeparation = (100)
+      ..levelSeparation = (150)
+      //..subtreeSeparation = (150)
+      ..orientation = (SugiyamaConfiguration.ORIENTATION_BOTTOM_TOP);
+
   }
 }
 
@@ -168,7 +175,8 @@ Future<Graph> fetchGraph(Graph graph) async {
   }
   //create graph
   for (var i = 0; i < articles.length; i++) {
-    graph.addNode(Node.Id(articles[i]));
+    Node node = Node.Id(articles[i]);
+    graph.addNode(node);
   }
   var edgeList;
   for (var articleID = 0; articleID < articles.length; articleID++) {

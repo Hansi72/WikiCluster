@@ -26,6 +26,7 @@ public class WebServer {
         } catch (IOException e) {
             System.out.println(e);
         }
+        System.out.println("Webserver Started");
     }
 
     static class MyHandler implements HttpHandler {
