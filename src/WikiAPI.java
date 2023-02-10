@@ -6,20 +6,39 @@ import java.util.LinkedList;
 
 public class WikiAPI {
 
-    public LinkedList<String> getWikiLinkTitles(String article, String countryCode) {
-        LinkedList<String> titles = new LinkedList<>();
+
+    public LinkedList<String> getAllPosts(String countryCode){
+        LinkedList<String> articles = new LinkedList<>();
+        try{
+            String url = "https://" + countryCode + ".wikipedia.org/w/api.php?action=query&format=json&list=allpages&formatversion=2&aplimit=max";
+            String requestAnswer = httpRequest(url);
+            while (requestAnswer.contains("apcontinue")) {
+                pushLinkTitles(requestAnswer, articles);
+                requestAnswer = httpRequest(url + "&apcontinue=" + URLEncoder.encode(getContinueCode(requestAnswer, "apcontinue"),"UTF-8"));
+                float percentageCompleted = (float)articles.size()/7000000*100;
+                System.out.println("Finding all posts. " + articles.size() + "  " + String.format("%.01f", percentageCompleted) + "% Complete");
+            }
+            pushLinkTitles(requestAnswer, articles);
+        } catch (IOException e) {
+            System.err.println(e);
+        }
+        return articles;
+    }
+
+    public LinkedList<String> getLinksHere(String article, String countryCode) {
+        LinkedList<String> articles = new LinkedList<>();
         try{
         String url = "https://" + countryCode + ".wikipedia.org/w/api.php?action=query&format=json&prop=linkshere&formatversion=2&lhprop=title&lhshow=!redirect&lhlimit=max&titles=" + URLEncoder.encode(article, "UTF-8");
             String requestAnswer = httpRequest(url);
             while (requestAnswer.contains("lhcontinue")) {
-                pushLinkTitles(requestAnswer, titles);
-                requestAnswer = httpRequest(url + "&lhcontinue=" + getContinueCode(requestAnswer));
+                pushLinkTitles(requestAnswer, articles);
+                requestAnswer = httpRequest(url + "&lhcontinue=" + getContinueCode(requestAnswer, "lhcontinue"));
             }
-            pushLinkTitles(requestAnswer, titles);
+            pushLinkTitles(requestAnswer, articles);
         } catch (IOException e) {
             System.err.println("HTTP request failed for title " + article + " ignoring this title.");
         }
-        return titles;
+        return articles;
     }
 
     //extract the url titles from a string of JSON.
@@ -43,15 +62,15 @@ public class WikiAPI {
         }
     }
 
-    String getContinueCode(String json) {
+    String getContinueCode(String json, String continueTag) {
         int startIndex;
         int endIndex;
-        startIndex = json.indexOf("lhcontinue") + "lhcontinue\": ".length();
+        startIndex = json.indexOf(continueTag) + continueTag.length() + "\": ".length();
         endIndex = json.indexOf('"' + ",", startIndex);
         return json.substring(startIndex, endIndex);
     }
 
-    //remove unwanted wikipedia links (talks, users etc..) todo: make this faster (with a trie, if it reaches endNode, ignore)
+    //remove unwanted wikipedia links (talks, users etc..) todo: make this faster (with a trie(?), if it reaches endNode, ignore)
     boolean isArticle(String title) {
         if (title.startsWith("Wikipedia")
                 || title.startsWith("Talk") || title.startsWith("User")
