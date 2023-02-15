@@ -16,7 +16,7 @@ public class WikiAPI {
                 pushLinkTitles(requestAnswer, articles);
                 requestAnswer = httpRequest(url + "&apcontinue=" + URLEncoder.encode(getContinueCode(requestAnswer, "apcontinue"),"UTF-8"));
                 float percentageCompleted = (float)articles.size()/7000000*100;
-                System.out.println("Finding all posts. " + articles.size() + "  " + String.format("%.01f", percentageCompleted) + "% Complete");
+                System.out.println("Finding all posts. " + articles.size());
             }
             pushLinkTitles(requestAnswer, articles);
         } catch (IOException e) {

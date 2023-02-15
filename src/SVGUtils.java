@@ -46,7 +46,7 @@ public final class SVGUtils {
         StringBuilder dotString = new StringBuilder("strict graph {\n"
                 + "layout=twopi;\n"  //twopi, circo..
                //+ "overlap = scale;\n"
-               + "concentrate=true\n"
+              // + "concentrate=true\n"
                // + "outputorder=\"edgesfirst\" \n"
                + "overlap = false;\n"
                + "splines = true;\n"

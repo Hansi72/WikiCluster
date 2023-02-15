@@ -6,11 +6,13 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 
+
 public class WebServer {
+    final static String[] colors = {"gray", "green", "blue", "yellow", "orange", "red"};
     static DataBase db;
     static int port;
 
@@ -42,7 +44,7 @@ public class WebServer {
             OutputStream os = exchange.getResponseBody();
             String[] nodeQuery = exchange.getRequestURI().getQuery().split("\\+");
             HashMap<String, LinkedList<String[]>> adjLists = new HashMap<String, LinkedList<String[]>>();
-            if (nodeQuery.length == 1) {
+            if (nodeQuery.length == 1) { //todo add solutionSize
                 for (int i = 0; i < nodeQuery.length; i++) {
                     LinkedList<String[]> adjacents = new LinkedList<String[]>();
                     for (Integer edgeID : db.adjLists.get(db.articlesByName.get(nodeQuery[i]))) {
@@ -52,7 +54,7 @@ public class WebServer {
                     adjLists.put(nodeQuery[i], adjacents);
                 }
             } else {
-                adjLists = smartThing(nodeQuery, 5, false);
+                adjLists = getShortestPathAdjList(nodeQuery, 10, false);
             }
             try {
                 String SVGFile = new String(SVGUtils.createSVG(SVGUtils.createDotFile(adjLists)));
@@ -65,105 +67,114 @@ public class WebServer {
         }
     }
 
-    //Does nodeQuery.length amount of BFS' until they all meet.
-    // todo make it find second(and third?) best route aswell. rename. refactor. add different colours per nodeQuery
-    static HashMap<String, LinkedList<String[]>> smartThing(String[] nodeQuery, int extraNodes, boolean hasDB) { //todo sparseness = how many irrelevant articles per node?
-        WikiAPI wikiAPI = new WikiAPI();
-        LinkedList<String> adjList = new LinkedList<String>();
-        LinkedList<String>[] queues = new LinkedList[nodeQuery.length];
-        HashMap<String, String[]> pathLists = new HashMap<String, String[]>();
-        HashSet<String> solutions = new HashSet<String>();
-        boolean foundSolution = false;
-        boolean isSolution;
-
-        for (int i = 0; i < nodeQuery.length; i++) {
-            queues[i] = new LinkedList<String>();
-            queues[i].add(nodeQuery[i]);
-            //pathLists.put(nodeQuery[i], new String[nodeQuery.length]);
-            //pathLists.get(nodeQuery[i])[i] = nodeQuery[i];
-        }
-
-        while (!foundSolution) {
-            //do one jump per BFS
-            for (int i = 0; i < nodeQuery.length; i++) {
-                if (!queues[i].isEmpty()) {
-                    String currentArticle = queues[i].remove();
-                    if (hasDB) {
-                        for (int articleID : db.adjLists.get(db.articlesByName.get(currentArticle))) {
-                            adjList.add(db.articlesByIndex.get(articleID));
-                        }
-                    } else {
-                        adjList = wikiAPI.getLinksHere(currentArticle, "no");
-                    }
-                    System.out.println("BFS in progress.. current article =" + currentArticle);
-                    for (String edgeName : adjList) {
-                        //System.out.println("edgeName = " + edgeName);
-                        pathLists.putIfAbsent(edgeName, new String[nodeQuery.length]);
-                        //if there is not already a shorter path from this source.
-                        if (pathLists.get(edgeName)[i] == null) {
-                            queues[i].add(edgeName);
-                            pathLists.get(edgeName)[i] = currentArticle;
-                        }
-                        //check if all sources reach
-                        isSolution = true;
-                        for (int j = 0; j < nodeQuery.length; j++) {
-                            if (pathLists.get(edgeName)[j] == null) {
-                                isSolution = false;
-                            }
-                        }
-                        if (isSolution) {
-                            foundSolution = true;
-                            solutions.add(edgeName);
-                        }
-                    }
-                }
-            }
-        }
+    //returns adjacency lists of shortest paths between nodeQuery input
+    static HashMap<String, LinkedList<String[]>> getShortestPathAdjList(String[] nodeQuery, int solutionSize, boolean hasDB) {
+        ArrayList<ArticleNode> solutions = getBFSPaths(nodeQuery, solutionSize, hasDB);
+        //todo sort solutions (already sorted?)
         System.out.println("adding solutions to result");
         //add solution paths to result
         HashMap<String, LinkedList<String[]>> adjLists = new HashMap<String, LinkedList<String[]>>();
-            for (String solution : solutions) {
-                String currentNode;
-                for (int i = 0; i < nodeQuery.length; i++) {
-                    currentNode = solution;
-                    while (!currentNode.equals(nodeQuery[i])) {
-                        String[] edgeNStyle = {currentNode, "[color=red]"};
-                        if (!adjLists.containsKey(pathLists.get(currentNode)[i])) {
-                            adjLists.put(pathLists.get(currentNode)[i], new LinkedList<String[]>());
-                        }
-                        adjLists.get(pathLists.get(currentNode)[i]).push(edgeNStyle);
+        for (ArticleNode solution : solutions) {
+            adjLists.put(solution.name, new LinkedList<>());
 
-                        if (extraNodes != 0) {
-                            String[] edgeNStyleSparse = new String[2];
-                            edgeNStyleSparse[1] = "[color=gray]";
-                            LinkedList<String> adjacents = new LinkedList<String>();
-                            adjacents = wikiAPI.getLinksHere(currentNode, "no");
-                            int addCount = 0;
-                            for (String adjant : adjacents) {
-                                if (addCount > extraNodes) {
-                                    break;
-                                }
-                                edgeNStyleSparse[0] = currentNode;
-                                if (!solutions.contains(adjant)) {
-                                    if (!adjLists.containsKey(adjant)) {
-                                        adjLists.put(adjant, new LinkedList<String[]>());
-                                    }
-                                    adjLists.get(adjant).push(edgeNStyleSparse);
-                                    addCount++;
-                                }
-                            }
+            int pathLength = 0;
+            for (int i = 0; i < nodeQuery.length; i++) {
+                pathLength = Math.min(pathLength + solution.pathLengths[i], 5);
+            }
+            String edgeColor = colors[pathLength];
 
-                        }
-                        currentNode = pathLists.get(currentNode)[i];
+            for (int i = 0; i < nodeQuery.length; i++) {
+                ArticleNode currentNode = solution;
+                while (currentNode.name != nodeQuery[i]) {
+                    //todo counter and set colours after (?)
+                    System.out.println("while loop comparing " + currentNode.name + "  :   " + nodeQuery[i] + " length: " + currentNode.pathLengths[i]);
+                    String[] edgeNStyle = {currentNode.sources[i].name, "[color=" + edgeColor + "]"}; //todo make enum of colours
+                    if (!adjLists.containsKey(currentNode.name)) {
+                        adjLists.put(currentNode.name, new LinkedList<>());
                     }
+                    adjLists.get(currentNode.name).add(edgeNStyle);
+                    currentNode = currentNode.sources[i];
                 }
             }
+        }
         //todo add some extra nodes for nodeQuery nodes
-        System.out.println("smartThing ended with solutioncount " + solutions.size());
+        System.out.println("smarterThing ended with solutioncount " + solutions.size());
         System.out.println("returning size " + adjLists.size());
         return adjLists;
     }
 
+    //returns a list of articleNodes that reach all nodes given in nodeQuery[]
+    static ArrayList<ArticleNode> getBFSPaths(String[] nodeQuery, int solutionSize, boolean hasDB) {
+        HashMap<String, ArticleNode> nodeInfo = new HashMap<>();
+        ArrayList<ArticleNode> solutions = new ArrayList<>(solutionSize);
+        LinkedList<ArticleNode>[] queues = new LinkedList[nodeQuery.length];
+
+        for (int i = 0; i < nodeQuery.length; i++) {
+            nodeInfo.put(nodeQuery[i], new ArticleNode(nodeQuery[i], nodeQuery.length));
+            //solutions.add(nodeInfo.get(nodeQuery[i]));
+            queues[i] = new LinkedList<ArticleNode>();
+            queues[i].add(nodeInfo.get(nodeQuery[i]));
+            //todo maybe connect sources to self.
+        }
+
+        int pathLength = 0;
+        int currentQueSize;
+        LinkedList<String> adjList;
+        while (solutions.size() < solutionSize) {
+            pathLength++;
+            //do one BFS jump per nodeQuery
+            for (int i = 0; i < nodeQuery.length; i++) {
+                currentQueSize = queues[i].size();
+                for (int k = 0; k < currentQueSize; k++) {
+                    ArticleNode currentArticle = queues[i].remove();
+                    adjList = getLinksHere(currentArticle.name, hasDB, "no");
+                    System.out.println("BFS in progress.. current article =" + currentArticle.name);
+                    System.out.println("adjlist size " + adjList.size());
+                    for (String edgeName : adjList) {
+                        nodeInfo.putIfAbsent(edgeName, new ArticleNode(edgeName, nodeQuery.length));
+                        //if there is not already a shorter path, add edge to queue.
+                        //todo change directions of this connection.
+                        if (nodeInfo.get(edgeName).sources[i] == null) {
+                            nodeInfo.get(edgeName).sources[i] = currentArticle;
+                            nodeInfo.get(edgeName).pathLengths[i] = pathLength;
+                            queues[i].add(nodeInfo.get(edgeName));
+                        }
+                        boolean isSolution = true;
+                        //add to solution if all sources reach this node
+                        for (int j = 0; j < nodeQuery.length; j++) {
+                            if (nodeInfo.get(edgeName).sources[j] == null) {
+                                isSolution = false;
+                            }
+                        }
+                        if (isSolution) {
+                            solutions.add(nodeInfo.get(edgeName));
+                        }
+                        if (solutions.size() > solutionSize) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        System.out.println("solutions");
+        for (ArticleNode solution : solutions) {
+            System.out.println(solution.name);
+        }
+        return solutions;
+    }
+
+    static LinkedList<String> getLinksHere(String source, boolean hasDB, String countryCode) {
+        if (hasDB) {
+            LinkedList<String> adjList = new LinkedList<>();
+            for (int articleID : db.adjLists.get(db.articlesByName.get(source))) {
+                adjList.add(db.articlesByIndex.get(articleID));
+            }
+            return adjList;
+        } else {
+            WikiAPI wikiAPI = new WikiAPI();
+            return wikiAPI.getLinksHere(source, countryCode);
+        }
+    }
 
     static class TestHandler implements HttpHandler {
         @Override
@@ -218,5 +229,16 @@ public class WebServer {
         }
         return String.valueOf(chars);
     }
+}
 
+class ArticleNode {
+    public String name;
+    public int[] pathLengths;
+    public ArticleNode[] sources;
+
+    public ArticleNode(String name, int querySize) {
+        this.name = name;
+        this.pathLengths = new int[querySize];
+        this.sources = new ArticleNode[querySize];
+    }
 }
