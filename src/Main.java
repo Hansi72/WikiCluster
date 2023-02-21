@@ -13,7 +13,7 @@ public class Main {
 
         //todo fiks threading of requests
 
-        db = db.loadFromFile("ErnaDB");
+        db = db.loadFromFile("norwayDB");
         System.out.println("DB loaded. Size: " + db.articlesByIndex.size());
 
         WebServer web = new WebServer(db, 7200);

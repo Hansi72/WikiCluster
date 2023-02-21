@@ -47,7 +47,6 @@ public final class SVGUtils {
                 + "layout=twopi;\n"  //twopi, circo..
                //+ "overlap = scale;\n"
               // + "concentrate=true\n"
-               // + "outputorder=\"edgesfirst\" \n"
                + "overlap = false;\n"
                + "splines = true;\n"
                // + "scale = 0.1;\n"

@@ -7,6 +7,7 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 
@@ -24,7 +25,7 @@ public class WebServer {
     public static void start() {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
-            server.createContext("/test", new TestHandler());
+            server.createContext("/db", new DBHandler());
             server.createContext("/getSVG", new SVGHandler());
             server.setExecutor(null);
             server.start();
@@ -41,21 +42,26 @@ public class WebServer {
             Headers headers = exchange.getResponseHeaders();
             headers.add("Access-Control-Allow-Origin", "*");
             exchange.sendResponseHeaders(200, 0);
+
             OutputStream os = exchange.getResponseBody();
             String[] nodeQuery = exchange.getRequestURI().getQuery().split("\\+");
-            HashMap<String, LinkedList<String[]>> adjLists = new HashMap<String, LinkedList<String[]>>();
-            if (nodeQuery.length == 1) { //todo add solutionSize
-                for (int i = 0; i < nodeQuery.length; i++) {
-                    LinkedList<String[]> adjacents = new LinkedList<String[]>();
-                    for (Integer edgeID : db.adjLists.get(db.articlesByName.get(nodeQuery[i]))) {
-                        String[] edgeNStyle = {db.articlesByIndex.get(edgeID), null};
-                        adjacents.push(edgeNStyle);
-                    }
-                    adjLists.put(nodeQuery[i], adjacents);
-                }
-            } else {
-                adjLists = getShortestPathAdjList(nodeQuery, 10, false);
+            int graphSize = 15;
+            //if single query, only get direct adjacents of input node.
+            if(nodeQuery.length == 1){
+                int adjacentSize = db.adjLists.get(db.articlesByName.get(nodeQuery[0])).size();
+                    graphSize = Math.min(adjacentSize + 1, graphSize);
             }
+            //get graphSize argument if present
+            try {
+                graphSize = Integer.parseInt(nodeQuery[nodeQuery.length - 1]);
+                assert (graphSize < 500);
+                nodeQuery = Arrays.copyOfRange(nodeQuery, 0, nodeQuery.length - 1);
+            } catch (Exception e) {
+                System.out.println("No nodeCount given, using default: " + graphSize);
+            }
+
+            HashMap<String, LinkedList<String[]>> adjLists = getShortestPathAdjList(nodeQuery, graphSize, true);
+
             try {
                 String SVGFile = new String(SVGUtils.createSVG(SVGUtils.createDotFile(adjLists)));
                 os.write(SVGFile.getBytes());
@@ -71,7 +77,6 @@ public class WebServer {
     static HashMap<String, LinkedList<String[]>> getShortestPathAdjList(String[] nodeQuery, int solutionSize, boolean hasDB) {
         ArrayList<ArticleNode> solutions = getBFSPaths(nodeQuery, solutionSize, hasDB);
         //todo sort solutions (already sorted?)
-        System.out.println("adding solutions to result");
         //add solution paths to result
         HashMap<String, LinkedList<String[]>> adjLists = new HashMap<String, LinkedList<String[]>>();
         for (ArticleNode solution : solutions) {
@@ -81,14 +86,12 @@ public class WebServer {
             for (int i = 0; i < nodeQuery.length; i++) {
                 pathLength = Math.min(pathLength + solution.pathLengths[i], 5);
             }
-            String edgeColor = colors[pathLength];
+            String edgeColor = "black"; //colors[pathLength]//todo assign different colours according to path length
 
             for (int i = 0; i < nodeQuery.length; i++) {
                 ArticleNode currentNode = solution;
                 while (currentNode.name != nodeQuery[i]) {
-                    //todo counter and set colours after (?)
-                    System.out.println("while loop comparing " + currentNode.name + "  :   " + nodeQuery[i] + " length: " + currentNode.pathLengths[i]);
-                    String[] edgeNStyle = {currentNode.sources[i].name, "[color=" + edgeColor + "]"}; //todo make enum of colours
+                    String[] edgeNStyle = {currentNode.sources[i].name, "[color=" + edgeColor + "]"};
                     if (!adjLists.containsKey(currentNode.name)) {
                         adjLists.put(currentNode.name, new LinkedList<>());
                     }
@@ -97,9 +100,6 @@ public class WebServer {
                 }
             }
         }
-        //todo add some extra nodes for nodeQuery nodes
-        System.out.println("smarterThing ended with solutioncount " + solutions.size());
-        System.out.println("returning size " + adjLists.size());
         return adjLists;
     }
 
@@ -118,19 +118,23 @@ public class WebServer {
         }
 
         int pathLength = 0;
-        int currentQueSize;
+        int currentNodeQueSize;
         LinkedList<String> adjList;
-        while (solutions.size() < solutionSize) {
+        while (solutions.size() < solutionSize - nodeQuery.length) {
             pathLength++;
             //do one BFS jump per nodeQuery
             for (int i = 0; i < nodeQuery.length; i++) {
-                currentQueSize = queues[i].size();
-                for (int k = 0; k < currentQueSize; k++) {
+                currentNodeQueSize = queues[i].size();
+                //todo refactor this loop to a method
+                for (int k = 0; k < currentNodeQueSize; k++) {
                     ArticleNode currentArticle = queues[i].remove();
                     adjList = getLinksHere(currentArticle.name, hasDB, "no");
                     System.out.println("BFS in progress.. current article =" + currentArticle.name);
                     System.out.println("adjlist size " + adjList.size());
                     for (String edgeName : adjList) {
+                        if (solutions.size() >= solutionSize - nodeQuery.length) {
+                            break;
+                        }
                         nodeInfo.putIfAbsent(edgeName, new ArticleNode(edgeName, nodeQuery.length));
                         //if there is not already a shorter path, add edge to queue.
                         //todo change directions of this connection.
@@ -149,16 +153,9 @@ public class WebServer {
                         if (isSolution) {
                             solutions.add(nodeInfo.get(edgeName));
                         }
-                        if (solutions.size() > solutionSize) {
-                            break;
-                        }
                     }
                 }
             }
-        }
-        System.out.println("solutions");
-        for (ArticleNode solution : solutions) {
-            System.out.println(solution.name);
         }
         return solutions;
     }
@@ -176,7 +173,8 @@ public class WebServer {
         }
     }
 
-    static class TestHandler implements HttpHandler {
+    //serves the whole database as a CVS-ish string
+    static class DBHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             Headers headers = exchange.getResponseHeaders();
