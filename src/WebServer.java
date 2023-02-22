@@ -27,6 +27,7 @@ public class WebServer {
             HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
             server.createContext("/db", new DBHandler());
             server.createContext("/getSVG", new SVGHandler());
+            server.createContext("/help", new HelpHandler());
             server.setExecutor(null);
             server.start();
         } catch (IOException e) {
@@ -54,7 +55,7 @@ public class WebServer {
             //get graphSize argument if present
             try {
                 graphSize = Integer.parseInt(nodeQuery[nodeQuery.length - 1]);
-                assert (graphSize < 500);
+                assert (1 < graphSize && graphSize < 250);
                 nodeQuery = Arrays.copyOfRange(nodeQuery, 0, nodeQuery.length - 1);
             } catch (Exception e) {
                 System.out.println("No nodeCount given, using default: " + graphSize);
@@ -183,6 +184,32 @@ public class WebServer {
             OutputStream os = exchange.getResponseBody();
             try {
                 os.write(dbPartToCSV(Integer.parseInt(exchange.getRequestURI().getQuery())).getBytes(StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                System.err.println("bad request query: " + exchange.getRequestURI().getQuery());
+                System.err.println(e);
+            }
+            os.close();
+        }
+
+    }
+
+    static class HelpHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            Headers headers = exchange.getResponseHeaders();
+            headers.add("Access-Control-Allow-Origin", "*");
+            exchange.sendResponseHeaders(200, 0);
+            OutputStream os = exchange.getResponseBody();
+            try {
+                os.write((
+                                ("/getSVG?arg1+arg2+arg3+arg4.. returns a SVG of a graph of shortest paths between articles.\n"
+                                        + "Arguments are wikipedia article names. ex: Argument 'Erna Solberg' corresponds to article at no.wikipedia.org/wiki/Erna_Solberg \n"
+                                        + "Arguments are sensitive and need correct capitalization.\n"
+                                        + "Optional: If the last argument n is a number 2-250 the svg will contain n articles. (experimental)\n"
+                                        + "Examples: \n"
+                                        + "trygven.no:7200/getSVG?Fana Sparebank \n"
+                                        + "trygven.no:7200/getSVG?Fana Sparebank+Erna Solberg"
+                                ).getBytes()));
             } catch (Exception e) {
                 System.err.println("bad request query: " + exchange.getRequestURI().getQuery());
                 System.err.println(e);
