@@ -42,14 +42,25 @@ public class WebServer {
             System.out.println("got query: getSVG/?" + exchange.getRequestURI().getQuery());
             Headers headers = exchange.getResponseHeaders();
             headers.add("Access-Control-Allow-Origin", "*");
-            exchange.sendResponseHeaders(200, 0);
 
             OutputStream os = exchange.getResponseBody();
             String[] nodeQuery = exchange.getRequestURI().getQuery().split("\\+");
+
+            for(int i = 0; i < nodeQuery.length; i++){
+                nodeQuery[i] = nodeQuery[i].replace("_", " ");
+                if(!db.articlesByName.containsKey(nodeQuery[i])){
+                    exchange.sendResponseHeaders(400, 0);
+                    os.close();
+                    return;
+                }
+            }
+            exchange.sendResponseHeaders(200, 0);
+
             int graphSize = 15;
             //if single query, only get direct adjacents of input node.
             if(nodeQuery.length == 1){
                 int adjacentSize = db.adjLists.get(db.articlesByName.get(nodeQuery[0])).size();
+                System.out.println(adjacentSize);
                     graphSize = Math.min(adjacentSize + 1, graphSize);
             }
             //get graphSize argument if present
