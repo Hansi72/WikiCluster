@@ -44,30 +44,35 @@ public class WebServer {
 
             OutputStream os = exchange.getResponseBody();
             String[] nodeQuery = exchange.getRequestURI().getQuery().split("\\+");
-
             int pathCount = 10;
+
             //if single query, only get direct adjacents of input node.
             if (nodeQuery.length == 1) {
-                int adjacentSize = db.adjLists.get(db.articlesByName.get(nodeQuery[0].replace("_", " "))).size();
-                System.out.println(adjacentSize);
-                pathCount = Math.min(adjacentSize + 1, pathCount);
-            }
-            //get pathCount argument if present
-            try {
-                pathCount = Integer.parseInt(nodeQuery[nodeQuery.length - 1]) + nodeQuery.length - 1;
-                assert (1 < pathCount && pathCount < 100);
-                nodeQuery = Arrays.copyOfRange(nodeQuery, 0, nodeQuery.length - 1);
-            } catch (Exception e) {
-                System.out.println("No nodeCount given, using default: " + pathCount);
-            }
-
-            for (int i = 0; i < nodeQuery.length; i++) {
-                nodeQuery[i] = nodeQuery[i].replace("_", " ");
-                if (!db.articlesByName.containsKey(nodeQuery[i])) {
+                if (!db.articlesByName.containsKey(nodeQuery[0])) {
                     exchange.sendResponseHeaders(400, 0);
-                    os.write(("Bad Request: Article name " + nodeQuery[i] + " not found in database.").getBytes("UTF-8"));
+                    os.write(badRequestErrorText(nodeQuery[0]).getBytes("UTF-8"));
                     os.close();
-                    return;
+                } else {
+                    int adjacentSize = db.adjLists.get(db.articlesByName.get(nodeQuery[0].replace("_", " "))).size();
+                    pathCount = Math.min(adjacentSize + 1, pathCount);
+                }
+            } else {
+                //get pathCount argument if present
+                try {
+                    pathCount = Integer.parseInt(nodeQuery[nodeQuery.length - 1]) + nodeQuery.length - 1;
+                    assert (1 < pathCount && pathCount < 100);
+                    nodeQuery = Arrays.copyOfRange(nodeQuery, 0, nodeQuery.length - 1);
+                } catch (Exception e) {
+                    System.out.println("No nodeCount given, using default: " + pathCount);
+                }
+                for (int i = 0; i < nodeQuery.length; i++) {
+                    nodeQuery[i] = nodeQuery[i].replace("_", " ");
+                    if (!db.articlesByName.containsKey(nodeQuery[i])) {
+                        exchange.sendResponseHeaders(400, 0);
+                        os.write(badRequestErrorText(nodeQuery[i]).getBytes("UTF-8"));
+                        os.close();
+                        return;
+                    }
                 }
             }
             exchange.sendResponseHeaders(200, 0);
@@ -207,15 +212,16 @@ public class WebServer {
             OutputStream os = exchange.getResponseBody();
             try {
                 os.write((
-                        "Usage: \n"
-                                + "http://trygven.no:7200/getSVG?article1+article2+article3..\n\n"
-                                + "Examples: \n"
+                        "Copy/paste examples into browsers url field to view graph: \n"
                                 + "http://trygven.no:7200/getSVG?Bergen \n"
                                 + "http://trygven.no:7200/getSVG?Bergen+Arbeidsgiver+Intervju \n\n"
 
-                                + "Choosing path amount(1-100): \n"
+                                + "Different amount of paths: \n"
                                 + "http://trygven.no:7200/getSVG?Bergen+Arbeidsgiver+Intervju+1 \n"
-                                + "http://trygven.no:7200/getSVG?Bergen+Arbeidsgiver+Intervju+20"
+                                + "http://trygven.no:7200/getSVG?Bergen+Arbeidsgiver+Intervju+20\n\n"
+
+                                + "Create your own graph with any number of articles and path amount(optional last argument, 1-100).\n"
+                                + "http://trygven.no:7200/getSVG?article1+article2+article3\n"
                 ).getBytes("UTF-8"));
             } catch (Exception e) {
                 System.err.println("bad request query: " + exchange.getRequestURI().getQuery());
@@ -224,6 +230,11 @@ public class WebServer {
             os.close();
         }
 
+    }
+
+    static String badRequestErrorText(String badArticle) {
+        return "Bad Request: Article name " + badArticle + " not found in database.\nArticle names are case-sensitive.\n" +
+                "Try to match article names from Wikipedia. e.g: Article 'Bergen' is procured from https://no.wikipedia.org/wiki/Bergen\n";
     }
 
     //returns a part of db data as a csv-ish string
