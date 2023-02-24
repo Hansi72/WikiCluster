@@ -13,7 +13,6 @@ import java.util.LinkedList;
 
 
 public class WebServer {
-    final static String[] colors = {"gray", "green", "blue", "yellow", "orange", "red"};
     static DataBase db;
     static int port;
 
@@ -46,33 +45,34 @@ public class WebServer {
             OutputStream os = exchange.getResponseBody();
             String[] nodeQuery = exchange.getRequestURI().getQuery().split("\\+");
 
-            for(int i = 0; i < nodeQuery.length; i++){
+            int pathCount = 10;
+            //if single query, only get direct adjacents of input node.
+            if (nodeQuery.length == 1) {
+                int adjacentSize = db.adjLists.get(db.articlesByName.get(nodeQuery[0])).size();
+                System.out.println(adjacentSize);
+                pathCount = Math.min(adjacentSize + 1, pathCount);
+            }
+            //get pathCount argument if present
+            try {
+                pathCount = Integer.parseInt(nodeQuery[nodeQuery.length - 1]) + nodeQuery.length - 1;
+                assert (1 < pathCount && pathCount < 250);
+                nodeQuery = Arrays.copyOfRange(nodeQuery, 0, nodeQuery.length - 1);
+            } catch (Exception e) {
+                System.out.println("No nodeCount given, using default: " + pathCount);
+            }
+
+            for (int i = 0; i < nodeQuery.length; i++) {
                 nodeQuery[i] = nodeQuery[i].replace("_", " ");
-                if(!db.articlesByName.containsKey(nodeQuery[i])){
+                if (!db.articlesByName.containsKey(nodeQuery[i])) {
                     exchange.sendResponseHeaders(400, 0);
+                    os.write(("Bad Request: Article name " + nodeQuery[i] + " not found in database.").getBytes("UTF-8"));
                     os.close();
                     return;
                 }
             }
             exchange.sendResponseHeaders(200, 0);
 
-            int graphSize = 15;
-            //if single query, only get direct adjacents of input node.
-            if(nodeQuery.length == 1){
-                int adjacentSize = db.adjLists.get(db.articlesByName.get(nodeQuery[0])).size();
-                System.out.println(adjacentSize);
-                    graphSize = Math.min(adjacentSize + 1, graphSize);
-            }
-            //get graphSize argument if present
-            try {
-                graphSize = Integer.parseInt(nodeQuery[nodeQuery.length - 1]);
-                assert (1 < graphSize && graphSize < 250);
-                nodeQuery = Arrays.copyOfRange(nodeQuery, 0, nodeQuery.length - 1);
-            } catch (Exception e) {
-                System.out.println("No nodeCount given, using default: " + graphSize);
-            }
-
-            HashMap<String, LinkedList<String[]>> adjLists = getShortestPathAdjList(nodeQuery, graphSize, true);
+            HashMap<String, LinkedList<String[]>> adjLists = getShortestPathAdjList(nodeQuery, pathCount, true);
 
             try {
                 String SVGFile = new String(SVGUtils.createSVG(SVGUtils.createDotFile(adjLists)));
@@ -88,7 +88,6 @@ public class WebServer {
     //returns adjacency lists of shortest paths between nodeQuery input
     static HashMap<String, LinkedList<String[]>> getShortestPathAdjList(String[] nodeQuery, int solutionSize, boolean hasDB) {
         ArrayList<ArticleNode> solutions = getBFSPaths(nodeQuery, solutionSize, hasDB);
-        //todo sort solutions (already sorted?)
         //add solution paths to result
         HashMap<String, LinkedList<String[]>> adjLists = new HashMap<String, LinkedList<String[]>>();
         for (ArticleNode solution : solutions) {
@@ -98,12 +97,11 @@ public class WebServer {
             for (int i = 0; i < nodeQuery.length; i++) {
                 pathLength = Math.min(pathLength + solution.pathLengths[i], 5);
             }
-            String edgeColor = "black"; //colors[pathLength]//todo assign different colours according to path length
 
             for (int i = 0; i < nodeQuery.length; i++) {
                 ArticleNode currentNode = solution;
                 while (currentNode.name != nodeQuery[i]) {
-                    String[] edgeNStyle = {currentNode.sources[i].name, "[color=" + edgeColor + "]"};
+                    String[] edgeNStyle = {currentNode.sources[i].name, "[color=black]"};
                     if (!adjLists.containsKey(currentNode.name)) {
                         adjLists.put(currentNode.name, new LinkedList<>());
                     }
@@ -123,10 +121,8 @@ public class WebServer {
 
         for (int i = 0; i < nodeQuery.length; i++) {
             nodeInfo.put(nodeQuery[i], new ArticleNode(nodeQuery[i], nodeQuery.length));
-            //solutions.add(nodeInfo.get(nodeQuery[i]));
             queues[i] = new LinkedList<ArticleNode>();
             queues[i].add(nodeInfo.get(nodeQuery[i]));
-            //todo maybe connect sources to self.
         }
 
         int pathLength = 0;
@@ -149,7 +145,6 @@ public class WebServer {
                         }
                         nodeInfo.putIfAbsent(edgeName, new ArticleNode(edgeName, nodeQuery.length));
                         //if there is not already a shorter path, add edge to queue.
-                        //todo change directions of this connection.
                         if (nodeInfo.get(edgeName).sources[i] == null) {
                             nodeInfo.get(edgeName).sources[i] = currentArticle;
                             nodeInfo.get(edgeName).pathLengths[i] = pathLength;
@@ -201,7 +196,6 @@ public class WebServer {
             }
             os.close();
         }
-
     }
 
     static class HelpHandler implements HttpHandler {
@@ -213,14 +207,17 @@ public class WebServer {
             OutputStream os = exchange.getResponseBody();
             try {
                 os.write((
-                                ("/getSVG?arg1+arg2+arg3+arg4.. returns a SVG of a graph of shortest paths between articles.\n"
-                                        + "Arguments are wikipedia article names. ex: Argument 'Erna Solberg' corresponds to article at no.wikipedia.org/wiki/Erna_Solberg \n"
-                                        + "Arguments are sensitive and need correct capitalization.\n"
-                                        + "Optional: If the last argument n is a number 2-250 the svg will contain n articles. (experimental)\n"
-                                        + "Examples: \n"
-                                        + "trygven.no:7200/getSVG?Fana Sparebank \n"
-                                        + "trygven.no:7200/getSVG?Fana Sparebank+Erna Solberg"
-                                ).getBytes()));
+
+                        "Usage: \n"
+                                + "http://trygven.no:7200/getSVG?article1+article2+article3..\n\n"
+                                + "Examples: \n"
+                                + "http://trygven.no:7200/getSVG?Fana_Sparebank \n"
+                                + "http://trygven.no:7200/getSVG?Fana_Sparebank+Programmerer+Arbeidsgiver \n\n"
+
+                                + "Choosing path amount: \n"
+                                + "http://trygven.no:7200/getSVG?Fana_Sparebank+Programmerer+Arbeidsgiver+1 \n"
+                                + "http://trygven.no:7200/getSVG?Fana_Sparebank+Programmerer+Arbeidsgiver+20"
+                ).getBytes("UTF-8"));
             } catch (Exception e) {
                 System.err.println("bad request query: " + exchange.getRequestURI().getQuery());
                 System.err.println(e);
