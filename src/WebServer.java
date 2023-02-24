@@ -48,14 +48,14 @@ public class WebServer {
             int pathCount = 10;
             //if single query, only get direct adjacents of input node.
             if (nodeQuery.length == 1) {
-                int adjacentSize = db.adjLists.get(db.articlesByName.get(nodeQuery[0])).size();
+                int adjacentSize = db.adjLists.get(db.articlesByName.get(nodeQuery[0].replace("_", " "))).size();
                 System.out.println(adjacentSize);
                 pathCount = Math.min(adjacentSize + 1, pathCount);
             }
             //get pathCount argument if present
             try {
                 pathCount = Integer.parseInt(nodeQuery[nodeQuery.length - 1]) + nodeQuery.length - 1;
-                assert (1 < pathCount && pathCount < 250);
+                assert (1 < pathCount && pathCount < 100);
                 nodeQuery = Arrays.copyOfRange(nodeQuery, 0, nodeQuery.length - 1);
             } catch (Exception e) {
                 System.out.println("No nodeCount given, using default: " + pathCount);
@@ -207,16 +207,15 @@ public class WebServer {
             OutputStream os = exchange.getResponseBody();
             try {
                 os.write((
-
                         "Usage: \n"
                                 + "http://trygven.no:7200/getSVG?article1+article2+article3..\n\n"
                                 + "Examples: \n"
-                                + "http://trygven.no:7200/getSVG?Fana_Sparebank \n"
-                                + "http://trygven.no:7200/getSVG?Fana_Sparebank+Programmerer+Arbeidsgiver \n\n"
+                                + "http://trygven.no:7200/getSVG?Bergen \n"
+                                + "http://trygven.no:7200/getSVG?Bergen+Arbeidsgiver+Intervju \n\n"
 
-                                + "Choosing path amount: \n"
-                                + "http://trygven.no:7200/getSVG?Fana_Sparebank+Programmerer+Arbeidsgiver+1 \n"
-                                + "http://trygven.no:7200/getSVG?Fana_Sparebank+Programmerer+Arbeidsgiver+20"
+                                + "Choosing path amount(1-100): \n"
+                                + "http://trygven.no:7200/getSVG?Bergen+Arbeidsgiver+Intervju+1 \n"
+                                + "http://trygven.no:7200/getSVG?Bergen+Arbeidsgiver+Intervju+20"
                 ).getBytes("UTF-8"));
             } catch (Exception e) {
                 System.err.println("bad request query: " + exchange.getRequestURI().getQuery());
