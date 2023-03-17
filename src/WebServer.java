@@ -1,11 +1,11 @@
-import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.*;
 
+import javax.net.ssl.*;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -23,14 +23,52 @@ public class WebServer {
 
     public static void start() {
         try {
-            HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+            HttpsServer server = HttpsServer.create(new InetSocketAddress(port), 0);
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+
+            // initialise the keystore
+            char[] password = "password".toCharArray();
+            //todo get password. kopier fra rpi til main for testing.s
+            //FileInputStream fis = new FileInputStream("/ssl/keystore.jks");
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            FileInputStream fis = new FileInputStream("/ssl/keystore.jks");
+            keyStore.load(fis, password);
+
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(keyStore, password);
+
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            tmf.init(keyStore);
+
+            // setup the HTTPS context and parameters
+            sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+            server.setHttpsConfigurator(new HttpsConfigurator(sslContext) {
+                @Override
+                public void configure(HttpsParameters params) {
+                    try {
+                        SSLContext context = getSSLContext();
+                        SSLEngine engine = context.createSSLEngine();
+                        params.setNeedClientAuth(false);
+                        params.setCipherSuites(engine.getEnabledCipherSuites());
+                        params.setProtocols(engine.getEnabledProtocols());
+
+                        SSLParameters sslParameters = context.getSupportedSSLParameters();
+                        params.setSSLParameters(sslParameters);
+
+                    } catch (Exception e) {
+                        System.out.println(e.getMessage());
+                    }
+                }
+            });
+
             server.createContext("/db", new DBHandler());
             server.createContext("/getSVG", new SVGHandler());
             server.createContext("/help", new HelpHandler());
             server.setExecutor(null);
             server.start();
-        } catch (IOException e) {
-            System.out.println(e);
+
+        } catch (IOException | NoSuchAlgorithmException | KeyManagementException | CertificateException | KeyStoreException | UnrecoverableKeyException e) {
+            e.printStackTrace();
         }
         System.out.println("Webserver Started");
     }
