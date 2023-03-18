@@ -6,15 +6,15 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.cert.CertificateException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedList;
+import java.security.cert.X509Certificate;
+import java.util.*;
 
 
 public class WebServer {
     static DataBase db;
     static int port;
+    private static final String certPath = "/etc/letsencrypt/live/trygven.no";
+    private static final String password = "";
 
     WebServer(DataBase db, int port) {
         WebServer.db = db;
@@ -26,21 +26,15 @@ public class WebServer {
             HttpsServer server = HttpsServer.create(new InetSocketAddress(port), 0);
             SSLContext sslContext = SSLContext.getInstance("TLS");
 
-            // initialise the keystore
-            char[] password = "password".toCharArray();
-            //todo get password. kopier fra rpi til main for testing.s
-            //FileInputStream fis = new FileInputStream("/ssl/keystore.jks");
-            KeyStore keyStore = KeyStore.getInstance("PKCS12");
-            FileInputStream fis = new FileInputStream("/ssl/keystore.jks");
-            keyStore.load(fis, password);
+            File certFile = new File(certPath + "/cert.pem");
+            File privKeyFile = new File(certPath + "/privkey.pem");
+            KeyStore keyStore = PEMImporter.createKeyStore(privKeyFile, certFile, password);
 
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(keyStore, password);
-
+            kmf.init(keyStore, password.toCharArray());
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             tmf.init(keyStore);
 
-            // setup the HTTPS context and parameters
             sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
             server.setHttpsConfigurator(new HttpsConfigurator(sslContext) {
                 @Override
@@ -67,7 +61,7 @@ public class WebServer {
             server.setExecutor(null);
             server.start();
 
-        } catch (IOException | NoSuchAlgorithmException | KeyManagementException | CertificateException | KeyStoreException | UnrecoverableKeyException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         System.out.println("Webserver Started");
